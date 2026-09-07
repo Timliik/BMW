@@ -14,45 +14,50 @@
         .output-box { margin-top: 20px; background: #eef2f5; padding: 15px; border-left: 4px solid #0066bf; border-radius: 4px; }
         textarea[readonly] { background: #fff; font-size: 15px; line-height: 1.5; }
         .hint { font-size: 12px; color: #666; font-weight: normal; margin-left: 5px; }
+        
+        /* 警示標籤樣式 */
+        .warning-box { margin-top: 15px; padding: 10px 15px; border-radius: 4px; font-weight: bold; display: none; font-size: 14px; }
+        .warning-danger { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .warning-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>BMW 保固案件 Claim Comment</h2>
+    <h2>BMW Claim Comment</h2>
     
     <div class="form-group">
         <label>O-Tone (Customer Complaint):</label>
-        <input type="text" id="oTone" placeholder="例如: Customer complained about emergency call system malfunction.">
+        <input type="text" id="oTone" placeholder="例如: Customer complained that vehicle engine cannot start.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone (Diagnosis & Action): <span class="hint">(故障原因與處置)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: ISTA/D no fault code. Noise coming from rear left electric spindle drive. Replace it."></textarea>
+        <label>Q-Tone(Diagnosis & Action): <span class="hint">(故障原因與處置)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: Check problem and replace wiper blade."></textarea>
     </div>
 
     <div class="form-group">
-        <label>Fault Code (故障碼, 選填):</label>
+        <label>Fault Code (故障碼):</label>
         <input type="text" id="faultCode" placeholder="例如: 0317F2 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Test Module (檢測計畫, 選填):</label>
+        <label>Test Module (檢測計畫):</label>
         <input type="text" id="testModule" placeholder="例如: AT6100_HVSYSGEN5 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Diag Code (診斷碼, 選填):</label>
+        <label>Diag Code (診斷碼):</label>
         <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306 或填 None">
     </div>
 
     <div class="form-group">
-        <label>TSARA Case No. (選填):</label>
+        <label>TSARA Case No.:</label>
         <input type="text" id="tsaraNo" placeholder="例如: 5084580">
     </div>
 
     <div class="form-group">
-        <label>PuMA Measure (PuMA 服務解決方案, 選填):</label>
+        <label>PuMA Measure (PuMA 服務解決方案):</label>
         <input type="text" id="pumaMeasure" placeholder="例如: 20000794435083">
     </div>
 
@@ -68,14 +73,54 @@
 
     <button onclick="generateComment()">生成 Claim Comment</button>
 
+    <!-- 警示訊息顯示區 -->
+    <div id="warningBox" class="warning-box"></div>
+
     <div class="output-box">
-        <label>Generated Claim Comment :</label>
+        <label>Generated Claim Comment:</label>
         <textarea id="output" rows="6" readonly></textarea>
         <button onclick="copyText()" style="margin-top: 10px; background: #28a745;">複製內文</button>
     </div>
 </div>
 
 <script>
+function checkLogicMismatch(oTone, qTone) {
+    let oLower = oTone.toLowerCase();
+    let qLower = qTone.toLowerCase();
+    
+    // 定義衝突邏輯庫
+    let conflicts = [
+        {
+            oKeys: ['start', 'engine', 'drivetrain', 'drive', 'battery', 'power', '高壓', '無法啟動', '引擎'],
+            qKeys: ['wiper', 'blade', 'washer', 'window', 'mirror', '雨刷', '噴水'],
+            oDesc: '無法啟動 / 電力 / 引擎故障',
+            qDesc: '雨刷 / 車窗 / 後視鏡'
+        },
+        {
+            oKeys: ['noise', 'sound', 'squeak', 'rattle', '異音', '噪音'],
+            qKeys: ['display', 'cid', 'hu', 'navi', '螢幕', '主機'],
+            oDesc: '異音 / 噪音問題',
+            qDesc: '螢幕 / 多媒體主機'
+        },
+        {
+            oKeys: ['light', 'lamp', 'headlight', 'headlamp', '指示燈', '頭燈', '照明'],
+            qKeys: ['tire', 'wheel', 'brake actuator', '輪胎', '煞車'],
+            oDesc: '燈光 / 照明問題',
+            qDesc: '輪胎 / 底盤煞車'
+        }
+    ];
+
+    for (let c of conflicts) {
+        let hasO = c.oKeys.some(k => oLower.includes(k));
+        let hasQ = c.qKeys.some(k => qLower.includes(k));
+        
+        if (hasO && hasQ) {
+            return `⚠️ 語意合理性提示：客戶反映為「${c.oDesc}」，但診斷處置提及「${c.qDesc}」，請確認是否填錯案件！`;
+        }
+    }
+    return null;
+}
+
 function generateComment() {
     let oTone = document.getElementById('oTone').value.trim();
     let qTone = document.getElementById('qTone').value.trim();
@@ -85,6 +130,21 @@ function generateComment() {
     let tsaraNo = document.getElementById('tsaraNo').value.trim();
     let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
     let closingText = document.getElementById('closingText').value;
+
+    // 邏輯比對檢查
+    let warningBox = document.getElementById('warningBox');
+    let warningMsg = checkLogicMismatch(oTone, qTone);
+    if (warningMsg) {
+        warningBox.innerText = warningMsg;
+        warningBox.className = "warning-box warning-danger";
+        warningBox.style.display = "block";
+    } else if (oTone !== "" && qTone !== "") {
+        warningBox.innerText = "✅ 邏輯比對無明顯異常";
+        warningBox.className = "warning-box warning-success";
+        warningBox.style.display = "block";
+    } else {
+        warningBox.style.display = "none";
+    }
 
     // 1. 處理 O-Tone 英文潤飾
     let sentence1 = "";
@@ -103,22 +163,18 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 智慧抓取零件名稱 (Target Component Detection)
+    // 2. 智慧抓取零件名稱
     let detectedComponent = "";
-    
-    // 試著從 "noise coming from [零件]", "comes from [零件]", "caused by [零件]" 抓取
     let fromMatch = qTone.match(/(?:from|by|at|the|damaged)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+So|\s+and|\s+we|\s+to|\s+replace|\s+was)/i);
     if (fromMatch && fromMatch[1].length > 3) {
         detectedComponent = fromMatch[1].replace(/^(a|the)\s+/i, "").trim();
     } else {
-        // 抓取常見簡稱 (TCB, BDC 等)
         let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
         detectedComponent = compMatch ? compMatch[0].toUpperCase() : "component";
     }
 
     // 3. 處理診斷敘述 (Sentence 2)
     let sentence2 = "";
-    
     if (qTone.toLowerCase().includes("noise")) {
         sentence2 = `Upon inspection, the technician confirmed that the noise was coming from the ${detectedComponent}.`;
     } else if (qTone.toLowerCase().includes("caused by")) {
@@ -138,10 +194,9 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 4. 智慧解析處置動作 (Action parsing)
+    // 4. 智慧解析處置動作
     let actionSentence = "";
     let qLower = qTone.toLowerCase();
-    
     if (qLower.includes("clean")) {
         actionSentence = `the ${detectedComponent} was cleaned`;
     } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("更新") || qLower.includes("換")) {
@@ -161,7 +216,6 @@ function generateComment() {
     if (refDocs.length > 0) {
         sentence3 = `According to ${refDocs.join(" and ")}, ${actionSentence} accordingly.`;
     } else {
-        // 第一個字母大寫
         actionSentence = actionSentence.charAt(0).toUpperCase() + actionSentence.slice(1);
         sentence3 = `${actionSentence} accordingly.`;
     }
