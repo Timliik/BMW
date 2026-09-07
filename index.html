@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>BMW Warranty Claim Comment Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f4f6f9; }
+        .container { max-width: 800px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        input, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #0066bf; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #004b8d; }
+        .output-box { margin-top: 20px; background: #eef2f5; padding: 15px; border-left: 4px solid #0066bf; border-radius: 4px; }
+        textarea[readonly] { background: #fff; font-size: 15px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>BMW 保固案件 Claim Comment 自動生成器</h2>
+    
+    <div class="form-group">
+        <label>O-Tone (Customer Complaint / 客戶反應):</label>
+        <input type="text" id="oTone" placeholder="例如: Customer complained about emergency call system was damage displayed on CID.">
+    </div>
+
+    <div class="form-group">
+        <label>Q-Tone / 故障原因 (Cause/Diagnosis):</label>
+        <input type="text" id="qTone" placeholder="例如: We check the problem and it was caused by TCB damage.">
+    </div>
+
+    <div class="form-group">
+        <label>Fault Code (故障碼, 選填):</label>
+        <input type="text" id="faultCode" placeholder="例如: S 0394">
+    </div>
+
+    <div class="form-group">
+        <label>Test Module (檢測計畫, 選填):</label>
+        <input type="text" id="testModule" placeholder="例如: AT8400_VERSORGUNG2">
+    </div>
+
+    <div class="form-group">
+        <label>TSARA Case No. (選填):</label>
+        <input type="text" id="tsaraNo" placeholder="例如: 5084580">
+    </div>
+
+    <div class="form-group">
+        <label>處理動作 (Action Taken):</label>
+        <input type="text" id="actionTaken" value="replaced TCB" placeholder="例如: replaced TCB / reprogrammed control unit">
+    </div>
+
+    <button onclick="generateComment()">生成 Claim Comment</button>
+
+    <div class="output-box">
+        <label>Generated Claim Comment (複製回覆 AG):</label>
+        <textarea id="output" rows="5" readonly></textarea>
+        <button onclick="copyText()" style="margin-top: 10px; background: #28a745;">複製內文</button>
+    </div>
+</div>
+
+<script>
+function generateComment() {
+    let oTone = document.getElementById('oTone').value.trim();
+    let qTone = document.getElementById('qTone').value.trim();
+    let faultCode = document.getElementById('faultCode').value.trim();
+    let testModule = document.getElementById('testModule').value.trim();
+    let tsaraNo = document.getElementById('tsaraNo').value.trim();
+    let actionTaken = document.getElementById('actionTaken').value.trim();
+
+    // 1. 處理 O-Tone 句型修正
+    let sentence1 = "";
+    if (oTone !== "") {
+        // 自動替換常見文法錯誤
+        let cleanedOTone = oTone
+            .replace(/was damage displayed/i, "malfunction was displayed")
+            .replace(/was damage/i, "was damaged");
+            
+        if (!cleanedOTone.toLowerCase().startsWith("customer complained")) {
+            sentence1 = "Customer complained that " + cleanedOTone;
+        } else {
+            sentence1 = cleanedOTone;
+        }
+        if (!sentence1.endsWith(".")) sentence1 += ".";
+    }
+
+    // 2. 處理診斷過程 (Q-Tone + Fault Code / Test Module)
+    let sentence2 = "";
+    if (qTone !== "") {
+        let cause = qTone.replace(/^We check the problem and it was caused by /i, "").replace(/\.$/, "");
+        sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
+    }
+
+    let diagDetails = [];
+    if (faultCode && faultCode.toLowerCase() !== "none") diagDetails.push(`fault code ${faultCode}`);
+    if (testModule && testModule.toLowerCase() !== "none") diagDetails.push(`test module <${testModule}>`);
+
+    if (diagDetails.length > 0) {
+        sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(" and ")}.`;
+    }
+
+    // 3. 處理 TSARA 與最終處置
+    let sentence3 = "";
+    if (tsaraNo && tsaraNo.toLowerCase() !== "none") {
+        sentence3 = `According to TSARA Case No. ${tsaraNo}, the ${actionTaken} accordingly.`;
+    } else if (actionTaken) {
+        sentence3 = `The ${actionTaken} accordingly.`;
+    }
+
+    // 組合最終結果
+    let finalOutput = [sentence1, sentence2, sentence3].filter(Boolean).join("\n");
+    document.getElementById('output').value = finalOutput;
+}
+
+function copyText() {
+    let copyText = document.getElementById("output");
+    copyText.select();
+    document.execCommand("copy");
+    alert("已複製到剪貼簿！");
+}
+</script>
+
+</body>
+</html>
