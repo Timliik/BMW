@@ -19,16 +19,16 @@
 <body>
 
 <div class="container">
-    <h2>BMW 保固案件 Claim Comment </h2>
+    <h2>BMW 保固案件 Claim Comment</h2>
     
     <div class="form-group">
-        <label>O-Tone (Customer Complaint / 客戶反應):</label>
+        <label>O-Tone (Customer Complaint):</label>
         <input type="text" id="oTone" placeholder="例如: Customer complained about emergency call system malfunction.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: ISTA/D no fault code about it.Test module no replacement suggestion.After we check.We find noises come from rear left parking brake actuator.So we replace it."></textarea>
+        <label>Q-Tone (Diagnosis & Action): <span class="hint">(故障原因與處置)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: ISTA/D no fault code. Noise coming from rear left electric spindle drive. Replace it."></textarea>
     </div>
 
     <div class="form-group">
@@ -57,7 +57,7 @@
     </div>
 
     <div class="form-group">
-        <label>結尾致謝語 (Closing Thanks):</label>
+        <label>Closing Thanks:</label>
         <select id="closingText">
             <option value="Thank you for reviewing this case.">Thank you for reviewing this case. (預設)</option>
             <option value="Thank you for your review and support.">Thank you for your review and support.</option>
@@ -103,14 +103,29 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 處理診斷過程 (Sentence 2)
-    let sentence2 = "Upon inspection, the technician performed the diagnosis.";
+    // 2. 智慧抓取零件名稱 (Target Component Detection)
+    let detectedComponent = "";
     
-    if (qTone.toLowerCase().includes("no fault code")) {
-        sentence2 = "Upon inspection, no relevant fault codes were stored in ISTA. Further diagnosis was performed.";
+    // 試著從 "noise coming from [零件]", "comes from [零件]", "caused by [零件]" 抓取
+    let fromMatch = qTone.match(/(?:from|by|at|the|damaged)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+So|\s+and|\s+we|\s+to|\s+replace|\s+was)/i);
+    if (fromMatch && fromMatch[1].length > 3) {
+        detectedComponent = fromMatch[1].replace(/^(a|the)\s+/i, "").trim();
+    } else {
+        // 抓取常見簡稱 (TCB, BDC 等)
+        let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
+        detectedComponent = compMatch ? compMatch[0].toUpperCase() : "component";
+    }
+
+    // 3. 處理診斷敘述 (Sentence 2)
+    let sentence2 = "";
+    
+    if (qTone.toLowerCase().includes("noise")) {
+        sentence2 = `Upon inspection, the technician confirmed that the noise was coming from the ${detectedComponent}.`;
     } else if (qTone.toLowerCase().includes("caused by")) {
         let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
         sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
+    } else {
+        sentence2 = `Upon inspection, the technician confirmed that the failure was caused by a damaged ${detectedComponent}.`;
     }
 
     // 處理 Fault Code, Test Module, Diag Code
@@ -123,35 +138,21 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 3. 智慧解析處理動作與零件名稱
+    // 4. 智慧解析處置動作 (Action parsing)
     let actionSentence = "";
     let qLower = qTone.toLowerCase();
     
     if (qLower.includes("clean")) {
-        let cleanTarget = qTone.replace(/^.*clean/i, "").replace(/\.$/, "").trim();
-        cleanTarget = cleanTarget.replace(/^(the|to|a)\s+/i, "");
-        actionSentence = `the ${cleanTarget} was cleaned`;
+        actionSentence = `the ${detectedComponent} was cleaned`;
     } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("更新") || qLower.includes("換")) {
-        let component = "";
-        
-        // 優先抓取如 "from rear left parking brake actuator" 之類的明確零件
-        let fromMatch = qTone.match(/(?:from|by|at|the)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+So|\s+and|\s+we|\s+to|\s+replace)/i);
-        if (fromMatch && fromMatch[1].length > 3) {
-            component = fromMatch[1].trim();
-        } else {
-            // 抓取常見簡稱
-            let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
-            component = compMatch ? compMatch[0].toUpperCase() : "component";
-        }
-        
-        actionSentence = `the ${component} was replaced`;
+        actionSentence = `the ${detectedComponent} was replaced`;
     } else if (qLower.includes("program") || qLower.includes("encode") || qLower.includes("update")) {
         actionSentence = `the control unit was reprogrammed`;
     } else {
         actionSentence = `the necessary repair procedure was performed`;
     }
 
-    // 結合 TSARA / PuMA 措施
+    // 結合 TSARA / PuMA 措施 (Sentence 3)
     let sentence3 = "";
     let refDocs = [];
     if (tsaraNo && tsaraNo.toLowerCase() !== "none") refDocs.push(`TSARA Case No. ${tsaraNo}`);
@@ -160,10 +161,12 @@ function generateComment() {
     if (refDocs.length > 0) {
         sentence3 = `According to ${refDocs.join(" and ")}, ${actionSentence} accordingly.`;
     } else {
-        sentence3 = `To address the issue, ${actionSentence} accordingly.`;
+        // 第一個字母大寫
+        actionSentence = actionSentence.charAt(0).toUpperCase() + actionSentence.slice(1);
+        sentence3 = `${actionSentence} accordingly.`;
     }
 
-    // 4. 致謝語
+    // 5. 致謝語
     let sentence4 = (closingText !== "none") ? closingText : "";
 
     // 組合最終 output
