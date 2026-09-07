@@ -46,6 +46,11 @@
         <input type="text" id="tsaraNo" placeholder="例如: 5084580">
     </div>
 
+    <div class="form-group">
+        <label>PuMA Measure (PuMA 措施編號, 選填):</label>
+        <input type="text" id="pumaMeasure" placeholder="例如: 65432100">
+    </div>
+
     <button onclick="generateComment()">生成 Claim Comment</button>
 
     <div class="output-box">
@@ -62,6 +67,7 @@ function generateComment() {
     let faultCode = document.getElementById('faultCode').value.trim();
     let testModule = document.getElementById('testModule').value.trim();
     let tsaraNo = document.getElementById('tsaraNo').value.trim();
+    let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
 
     // 1. 處理 O-Tone (客訴描述修飾)
     let sentence1 = "";
@@ -78,11 +84,11 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 自動判斷診斷與零件名稱 (例如從 TCB damage 或 更新TCB 中擷取零件名稱)
+    // 2. 自動判斷診斷與零件名稱
     let sentence2 = "";
     let mainComponent = "component"; // 預設零件通稱
     
-    // 試圖抓取常出現的控制單元名稱 (如 TCB, BDC, DME, RAM 等)
+    // 抓取常出現的控制單元名稱
     let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
     if (compMatch) {
         mainComponent = compMatch[0].toUpperCase();
@@ -108,10 +114,19 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(" and ")}.`;
     }
 
-    // 3. 處理處置動作與 TSARA Case
+    // 3. 處理處置動作、TSARA Case 與 PuMA Measure
     let sentence3 = "";
+    let refDocs = [];
+    
     if (tsaraNo && tsaraNo.toLowerCase() !== "none") {
-        sentence3 = `According to TSARA Case No. ${tsaraNo}, the ${mainComponent} was replaced accordingly.`;
+        refDocs.push(`TSARA Case No. ${tsaraNo}`);
+    }
+    if (pumaMeasure && pumaMeasure.toLowerCase() !== "none") {
+        refDocs.push(`PuMA Measure <${pumaMeasure}>`);
+    }
+
+    if (refDocs.length > 0) {
+        sentence3 = `According to ${refDocs.join(" and ")}, the ${mainComponent} was replaced accordingly.`;
     } else {
         sentence3 = `The ${mainComponent} was replaced accordingly.`;
     }
