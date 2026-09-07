@@ -23,27 +23,27 @@
     
     <div class="form-group">
         <label>O-Tone (Customer Complaint / 客戶反應):</label>
-        <input type="text" id="oTone" placeholder="例如: Customer complained about emergency call system was damage displayed on CID.">
+        <input type="text" id="oTone" placeholder="例如: Customer complained about drivetrain system warning lamp was lit up.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置，例如: We check the problem and it was caused by TCB damage.)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: We check the problem and it was caused by TCB damage. (或填寫中文維修過程)"></textarea>
+        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置，如: We checked the problem and it need to clean the carbon brush at rear HEAT.)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: We checked the problem and it need to clean the carbon brush at rear HEAT."></textarea>
     </div>
 
     <div class="form-group">
         <label>Fault Code (故障碼, 選填):</label>
-        <input type="text" id="faultCode" placeholder="例如: S 0394">
+        <input type="text" id="faultCode" placeholder="例如: 0317F2">
     </div>
 
     <div class="form-group">
         <label>Test Module (檢測計畫, 選填):</label>
-        <input type="text" id="testModule" placeholder="例如: AT8400_VERSORGUNG2">
+        <input type="text" id="testModule" placeholder="例如: AT6100_HVSYSGEN5">
     </div>
 
     <div class="form-group">
         <label>Diag Code (診斷碼, 選填):</label>
-        <input type="text" id="diagCode" placeholder="例如: D6541_00000000_01_001">
+        <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306">
     </div>
 
     <div class="form-group">
@@ -53,7 +53,7 @@
 
     <div class="form-group">
         <label>PuMA Measure (PuMA 措施編號, 選填):</label>
-        <input type="text" id="pumaMeasure" placeholder="例如: 65432100">
+        <input type="text" id="pumaMeasure" placeholder="例如: 20000794435083">
     </div>
 
     <div class="form-group">
@@ -86,12 +86,14 @@ function generateComment() {
     let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
     let closingText = document.getElementById('closingText').value;
 
-    // 1. 處理 O-Tone
+    // 1. 處理 O-Tone 英文潤飾
     let sentence1 = "";
     if (oTone !== "") {
         let cleanedOTone = oTone
             .replace(/was damage displayed/i, "malfunction was displayed")
-            .replace(/was damage/i, "was damaged");
+            .replace(/was damage/i, "was damaged")
+            .replace(/warning lamp was lit up/i, "warning lamp came on")
+            .replace(/was lit up/i, "came on");
             
         if (!cleanedOTone.toLowerCase().startsWith("customer complained")) {
             sentence1 = "Customer complained that " + cleanedOTone;
@@ -101,27 +103,16 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 處理診斷與零件名稱
-    let sentence2 = "";
-    let mainComponent = "component";
+    // 2. 處理診斷與檢測步驟 (Sentence 2)
+    let sentence2 = "Upon inspection, the technician confirmed the condition and performed diagnosis.";
     
-    let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
-    if (compMatch) {
-        mainComponent = compMatch[0].toUpperCase();
+    // 如果 Q-Tone 中有提到 caused by 故障原因
+    if (qTone.toLowerCase().includes("caused by")) {
+        let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
+        sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
     }
 
-    if (qTone !== "") {
-        if (qTone.toLowerCase().includes("caused by")) {
-            let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
-            sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
-        } else if (qTone.includes("故障") || qTone.includes("損壞")) {
-            sentence2 = `Upon inspection, the technician confirmed that the issue was caused by a damaged ${mainComponent}.`;
-        } else {
-            sentence2 = `Upon inspection, the technician confirmed the failure and performed the diagnosis.`;
-        }
-    }
-
-    // 處理故障碼、檢測計畫與 Diag Code
+    // 處理 Fault Code, Test Module, Diag Code
     let diagDetails = [];
     if (faultCode && faultCode.toLowerCase() !== "none") diagDetails.push(`fault code ${faultCode}`);
     if (testModule && testModule.toLowerCase() !== "none") diagDetails.push(`test module <${testModule}>`);
@@ -131,30 +122,42 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 3. 處理 TSARA Case 與 PuMA Measure
+    // 3. 智慧解析處理動作 (Action parsing)
+    let actionSentence = "";
+    let qLower = qTone.toLowerCase();
+    
+    // 判斷動作動詞: clean / replace / program / adjust 等
+    if (qLower.includes("clean")) {
+        let cleanTarget = qTone.replace(/^.*clean/i, "").replace(/\.$/, "").trim();
+        // 移除多餘前導詞 (如 the, to 等)
+        cleanTarget = cleanTarget.replace(/^(the|to|a)\s+/i, "");
+        actionSentence = `the ${cleanTarget} was cleaned`;
+    } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("更新") || qLower.includes("換")) {
+        let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
+        let comp = compMatch ? compMatch[0].toUpperCase() : "component";
+        actionSentence = `the ${comp} was replaced`;
+    } else if (qLower.includes("program") || qLower.includes("encode") || qLower.includes("update")) {
+        actionSentence = `the control unit was reprogrammed`;
+    } else {
+        actionSentence = `the necessary repair procedure was performed`;
+    }
+
+    // 結合 TSARA / PuMA 措施
     let sentence3 = "";
     let refDocs = [];
-    
-    if (tsaraNo && tsaraNo.toLowerCase() !== "none") {
-        refDocs.push(`TSARA Case No. ${tsaraNo}`);
-    }
-    if (pumaMeasure && pumaMeasure.toLowerCase() !== "none") {
-        refDocs.push(`PuMA Measure <${pumaMeasure}>`);
-    }
+    if (tsaraNo && tsaraNo.toLowerCase() !== "none") refDocs.push(`TSARA Case No. ${tsaraNo}`);
+    if (pumaMeasure && pumaMeasure.toLowerCase() !== "none") refDocs.push(`PuMA Measure <${pumaMeasure}>`);
 
     if (refDocs.length > 0) {
-        sentence3 = `According to ${refDocs.join(" and ")}, the ${mainComponent} was replaced accordingly.`;
+        sentence3 = `According to ${refDocs.join(" and ")}, ${actionSentence} accordingly.`;
     } else {
-        sentence3 = `The ${mainComponent} was replaced accordingly.`;
+        sentence3 = `To address the issue, ${actionSentence} accordingly.`;
     }
 
-    // 4. 結尾致謝語
-    let sentence4 = "";
-    if (closingText !== "none") {
-        sentence4 = closingText;
-    }
+    // 4. 致謝語
+    let sentence4 = (closingText !== "none") ? closingText : "";
 
-    // 組合結果
+    // 組合最終 output
     let finalOutput = [sentence1, sentence2, sentence3, sentence4].filter(Boolean).join("\n");
     document.getElementById('output').value = finalOutput;
 }
