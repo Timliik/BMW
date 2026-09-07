@@ -13,6 +13,7 @@
         button:hover { background: #004b8d; }
         .output-box { margin-top: 20px; background: #eef2f5; padding: 15px; border-left: 4px solid #0066bf; border-radius: 4px; }
         textarea[readonly] { background: #fff; font-size: 15px; line-height: 1.5; }
+        .hint { font-size: 12px; color: #666; font-weight: normal; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -26,8 +27,8 @@
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 故障原因 (Cause/Diagnosis):</label>
-        <input type="text" id="qTone" placeholder="例如: We check the problem and it was caused by TCB damage.">
+        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(直接貼上故障原因與處置，例如: We check the problem and it was caused by TCB damage.)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: We check the problem and it was caused by TCB damage. (或填寫中文維修過程: 診斷為 TCB 損壞，須更新 TCB 控制單元)"></textarea>
     </div>
 
     <div class="form-group">
@@ -43,11 +44,6 @@
     <div class="form-group">
         <label>TSARA Case No. (選填):</label>
         <input type="text" id="tsaraNo" placeholder="例如: 5084580">
-    </div>
-
-    <div class="form-group">
-        <label>處理動作 (Action Taken):</label>
-        <input type="text" id="actionTaken" value="replaced TCB" placeholder="例如: replaced TCB / reprogrammed control unit">
     </div>
 
     <button onclick="generateComment()">生成 Claim Comment</button>
@@ -66,12 +62,10 @@ function generateComment() {
     let faultCode = document.getElementById('faultCode').value.trim();
     let testModule = document.getElementById('testModule').value.trim();
     let tsaraNo = document.getElementById('tsaraNo').value.trim();
-    let actionTaken = document.getElementById('actionTaken').value.trim();
 
-    // 1. 處理 O-Tone 句型修正
+    // 1. 處理 O-Tone (客訴描述修飾)
     let sentence1 = "";
     if (oTone !== "") {
-        // 自動替換常見文法錯誤
         let cleanedOTone = oTone
             .replace(/was damage displayed/i, "malfunction was displayed")
             .replace(/was damage/i, "was damaged");
@@ -84,13 +78,28 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 處理診斷過程 (Q-Tone + Fault Code / Test Module)
+    // 2. 自動判斷診斷與零件名稱 (例如從 TCB damage 或 更新TCB 中擷取零件名稱)
     let sentence2 = "";
-    if (qTone !== "") {
-        let cause = qTone.replace(/^We check the problem and it was caused by /i, "").replace(/\.$/, "");
-        sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
+    let mainComponent = "component"; // 預設零件通稱
+    
+    // 試圖抓取常出現的控制單元名稱 (如 TCB, BDC, DME, RAM 等)
+    let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
+    if (compMatch) {
+        mainComponent = compMatch[0].toUpperCase();
     }
 
+    if (qTone !== "") {
+        if (qTone.toLowerCase().includes("caused by")) {
+            let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
+            sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
+        } else if (qTone.includes("故障") || qTone.includes("損壞")) {
+            sentence2 = `Upon inspection, the technician confirmed that the issue was caused by a damaged ${mainComponent}.`;
+        } else {
+            sentence2 = `Upon inspection, the technician confirmed the failure and performed the diagnosis.`;
+        }
+    }
+
+    // 處理故障碼與檢測計畫
     let diagDetails = [];
     if (faultCode && faultCode.toLowerCase() !== "none") diagDetails.push(`fault code ${faultCode}`);
     if (testModule && testModule.toLowerCase() !== "none") diagDetails.push(`test module <${testModule}>`);
@@ -99,12 +108,12 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(" and ")}.`;
     }
 
-    // 3. 處理 TSARA 與最終處置
+    // 3. 處理處置動作與 TSARA Case
     let sentence3 = "";
     if (tsaraNo && tsaraNo.toLowerCase() !== "none") {
-        sentence3 = `According to TSARA Case No. ${tsaraNo}, the ${actionTaken} accordingly.`;
-    } else if (actionTaken) {
-        sentence3 = `The ${actionTaken} accordingly.`;
+        sentence3 = `According to TSARA Case No. ${tsaraNo}, the ${mainComponent} was replaced accordingly.`;
+    } else {
+        sentence3 = `The ${mainComponent} was replaced accordingly.`;
     }
 
     // 組合最終結果
