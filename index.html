@@ -27,8 +27,8 @@
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(直接貼上故障原因與處置，例如: We check the problem and it was caused by TCB damage.)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: We check the problem and it was caused by TCB damage. (或填寫中文維修過程: 診斷為 TCB 損壞，須更新 TCB 控制單元)"></textarea>
+        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置，例如: We check the problem and it was caused by TCB damage.)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: We check the problem and it was caused by TCB damage. (或填寫中文維修過程)"></textarea>
     </div>
 
     <div class="form-group">
@@ -39,6 +39,11 @@
     <div class="form-group">
         <label>Test Module (檢測計畫, 選填):</label>
         <input type="text" id="testModule" placeholder="例如: AT8400_VERSORGUNG2">
+    </div>
+
+    <div class="form-group">
+        <label>Diag Code (診斷碼, 選填):</label>
+        <input type="text" id="diagCode" placeholder="例如: D6541_00000000_01_001">
     </div>
 
     <div class="form-group">
@@ -66,6 +71,7 @@ function generateComment() {
     let qTone = document.getElementById('qTone').value.trim();
     let faultCode = document.getElementById('faultCode').value.trim();
     let testModule = document.getElementById('testModule').value.trim();
+    let diagCode = document.getElementById('diagCode').value.trim();
     let tsaraNo = document.getElementById('tsaraNo').value.trim();
     let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
 
@@ -105,13 +111,14 @@ function generateComment() {
         }
     }
 
-    // 處理故障碼與檢測計畫
+    // 處理故障碼、檢測計畫與 Diag Code
     let diagDetails = [];
     if (faultCode && faultCode.toLowerCase() !== "none") diagDetails.push(`fault code ${faultCode}`);
     if (testModule && testModule.toLowerCase() !== "none") diagDetails.push(`test module <${testModule}>`);
+    if (diagCode && diagCode.toLowerCase() !== "none") diagDetails.push(`diag code <${diagCode}>`);
 
     if (diagDetails.length > 0) {
-        sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(" and ")}.`;
+        sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
     // 3. 處理處置動作、TSARA Case 與 PuMA Measure
