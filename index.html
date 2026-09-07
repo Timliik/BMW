@@ -23,27 +23,27 @@
     
     <div class="form-group">
         <label>O-Tone (Customer Complaint / 客戶反應):</label>
-        <input type="text" id="oTone" placeholder="例如: Customer complained about drivetrain system warning lamp was lit up.">
+        <input type="text" id="oTone" placeholder="例如: Customer complained about emergency call system malfunction.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置，如: We checked the problem and it need to clean the carbon brush at rear HEAT.)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: We checked the problem and it need to clean the carbon brush at rear HEAT."></textarea>
+        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: ISTA/D no fault code about it.Test module no replacement suggestion.After we check.We find noises come from rear left parking brake actuator.So we replace it."></textarea>
     </div>
 
     <div class="form-group">
         <label>Fault Code (故障碼, 選填):</label>
-        <input type="text" id="faultCode" placeholder="例如: 0317F2">
+        <input type="text" id="faultCode" placeholder="例如: 0317F2 或填 None">
     </div>
 
     <div class="form-group">
         <label>Test Module (檢測計畫, 選填):</label>
-        <input type="text" id="testModule" placeholder="例如: AT6100_HVSYSGEN5">
+        <input type="text" id="testModule" placeholder="例如: AT6100_HVSYSGEN5 或填 None">
     </div>
 
     <div class="form-group">
         <label>Diag Code (診斷碼, 選填):</label>
-        <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306">
+        <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306 或填 None">
     </div>
 
     <div class="form-group">
@@ -69,7 +69,7 @@
     <button onclick="generateComment()">生成 Claim Comment</button>
 
     <div class="output-box">
-        <label>Generated Claim Comment:</label>
+        <label>Generated Claim Comment :</label>
         <textarea id="output" rows="6" readonly></textarea>
         <button onclick="copyText()" style="margin-top: 10px; background: #28a745;">複製內文</button>
     </div>
@@ -103,11 +103,12 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 處理診斷與檢測步驟 (Sentence 2)
-    let sentence2 = "Upon inspection, the technician confirmed the condition and performed diagnosis.";
+    // 2. 處理診斷過程 (Sentence 2)
+    let sentence2 = "Upon inspection, the technician performed the diagnosis.";
     
-    // 如果 Q-Tone 中有提到 caused by 故障原因
-    if (qTone.toLowerCase().includes("caused by")) {
+    if (qTone.toLowerCase().includes("no fault code")) {
+        sentence2 = "Upon inspection, no relevant fault codes were stored in ISTA. Further diagnosis was performed.";
+    } else if (qTone.toLowerCase().includes("caused by")) {
         let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
         sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
     }
@@ -122,20 +123,28 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 3. 智慧解析處理動作 (Action parsing)
+    // 3. 智慧解析處理動作與零件名稱
     let actionSentence = "";
     let qLower = qTone.toLowerCase();
     
-    // 判斷動作動詞: clean / replace / program / adjust 等
     if (qLower.includes("clean")) {
         let cleanTarget = qTone.replace(/^.*clean/i, "").replace(/\.$/, "").trim();
-        // 移除多餘前導詞 (如 the, to 等)
         cleanTarget = cleanTarget.replace(/^(the|to|a)\s+/i, "");
         actionSentence = `the ${cleanTarget} was cleaned`;
     } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("更新") || qLower.includes("換")) {
-        let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
-        let comp = compMatch ? compMatch[0].toUpperCase() : "component";
-        actionSentence = `the ${comp} was replaced`;
+        let component = "";
+        
+        // 優先抓取如 "from rear left parking brake actuator" 之類的明確零件
+        let fromMatch = qTone.match(/(?:from|by|at|the)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+So|\s+and|\s+we|\s+to|\s+replace)/i);
+        if (fromMatch && fromMatch[1].length > 3) {
+            component = fromMatch[1].trim();
+        } else {
+            // 抓取常見簡稱
+            let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
+            component = compMatch ? compMatch[0].toUpperCase() : "component";
+        }
+        
+        actionSentence = `the ${component} was replaced`;
     } else if (qLower.includes("program") || qLower.includes("encode") || qLower.includes("update")) {
         actionSentence = `the control unit was reprogrammed`;
     } else {
