@@ -75,7 +75,7 @@ function generateComment() {
     let tsaraNo = document.getElementById('tsaraNo').value.trim();
     let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
 
-    // 1. 處理 O-Tone (客訴描述修飾)
+    // 1. 處理 O-Tone
     let sentence1 = "";
     if (oTone !== "") {
         let cleanedOTone = oTone
@@ -90,11 +90,10 @@ function generateComment() {
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 自動判斷診斷與零件名稱
+    // 2. 處理診斷與零件名稱
     let sentence2 = "";
-    let mainComponent = "component"; // 預設零件通稱
+    let mainComponent = "component";
     
-    // 抓取常出現的控制單元名稱
     let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
     if (compMatch) {
         mainComponent = compMatch[0].toUpperCase();
@@ -121,7 +120,7 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 3. 處理處置動作、TSARA Case 與 PuMA Measure
+    // 3. 處理 TSARA Case 與 PuMA Measure
     let sentence3 = "";
     let refDocs = [];
     
@@ -138,7 +137,7 @@ function generateComment() {
         sentence3 = `The ${mainComponent} was replaced accordingly.`;
     }
 
-    // 組合最終結果
+    // 組合結果
     let finalOutput = [sentence1, sentence2, sentence3].filter(Boolean).join("\n");
     document.getElementById('output').value = finalOutput;
 }
