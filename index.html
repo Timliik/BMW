@@ -14,8 +14,6 @@
         .output-box { margin-top: 20px; background: #eef2f5; padding: 15px; border-left: 4px solid #0066bf; border-radius: 4px; }
         textarea[readonly] { background: #fff; font-size: 15px; line-height: 1.5; }
         .hint { font-size: 12px; color: #666; font-weight: normal; margin-left: 5px; }
-        
-        /* 警示標籤樣式 */
         .warning-box { margin-top: 15px; padding: 10px 15px; border-radius: 4px; font-weight: bold; display: none; font-size: 14px; }
         .warning-danger { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
         .warning-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -24,45 +22,45 @@
 <body>
 
 <div class="container">
-    <h2>BMW Claim Comment</h2>
+    <h2>BMW 保固案件 Claim Comment 自動生成器</h2>
     
     <div class="form-group">
-        <label>O-Tone (Customer Complaint):</label>
-        <input type="text" id="oTone" placeholder="例如: Customer complained that vehicle engine cannot start.">
+        <label>O-Tone (Customer Complaint / 客戶反應):</label>
+        <input type="text" id="oTone" placeholder="例如: Customer complaint about noises after he drive vehicle on road.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone(Diagnosis & Action): <span class="hint">(故障原因與處置)</span></label>
-        <textarea id="qTone" rows="3" placeholder="例如: Check problem and replace wiper blade."></textarea>
+        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置)</span></label>
+        <textarea id="qTone" rows="3" placeholder="例如: Test module AT6450_LG_KLMA show to replace expansion valve. So we replace it."></textarea>
     </div>
 
     <div class="form-group">
-        <label>Fault Code (故障碼):</label>
+        <label>Fault Code (故障碼, 選填):</label>
         <input type="text" id="faultCode" placeholder="例如: 0317F2 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Test Module (檢測計畫):</label>
-        <input type="text" id="testModule" placeholder="例如: AT6100_HVSYSGEN5 或填 None">
+        <label>Test Module (檢測計畫, 選填):</label>
+        <input type="text" id="testModule" placeholder="例如: AT6450_LG_KLMA 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Diag Code (診斷碼):</label>
+        <label>Diag Code (診斷碼, 選填):</label>
         <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306 或填 None">
     </div>
 
     <div class="form-group">
-        <label>TSARA Case No.:</label>
-        <input type="text" id="tsaraNo" placeholder="例如: 5084580">
+        <label>TSARA Case No. (選填):</label>
+        <input type="text" id="tsaraNo" placeholder="例如: 5164534">
     </div>
 
     <div class="form-group">
-        <label>PuMA Measure (PuMA 服務解決方案):</label>
+        <label>PuMA Measure (PuMA 措施編號, 選填):</label>
         <input type="text" id="pumaMeasure" placeholder="例如: 20000794435083">
     </div>
 
     <div class="form-group">
-        <label>Closing Thanks:</label>
+        <label>結尾致謝語 (Closing Thanks):</label>
         <select id="closingText">
             <option value="Thank you for reviewing this case.">Thank you for reviewing this case. (預設)</option>
             <option value="Thank you for your review and support.">Thank you for your review and support.</option>
@@ -73,11 +71,10 @@
 
     <button onclick="generateComment()">生成 Claim Comment</button>
 
-    <!-- 警示訊息顯示區 -->
     <div id="warningBox" class="warning-box"></div>
 
     <div class="output-box">
-        <label>Generated Claim Comment:</label>
+        <label>Generated Claim Comment (複製回覆 AG):</label>
         <textarea id="output" rows="6" readonly></textarea>
         <button onclick="copyText()" style="margin-top: 10px; background: #28a745;">複製內文</button>
     </div>
@@ -88,7 +85,6 @@ function checkLogicMismatch(oTone, qTone) {
     let oLower = oTone.toLowerCase();
     let qLower = qTone.toLowerCase();
     
-    // 定義衝突邏輯庫
     let conflicts = [
         {
             oKeys: ['start', 'engine', 'drivetrain', 'drive', 'battery', 'power', '高壓', '無法啟動', '引擎'],
@@ -98,27 +94,48 @@ function checkLogicMismatch(oTone, qTone) {
         },
         {
             oKeys: ['noise', 'sound', 'squeak', 'rattle', '異音', '噪音'],
-            qKeys: ['display', 'cid', 'hu', 'navi', '螢幕', '主機'],
+            qKeys: ['display', 'cid', 'hu', 'navi', '螢幕', '多媒體主機'],
             oDesc: '異音 / 噪音問題',
             qDesc: '螢幕 / 多媒體主機'
-        },
-        {
-            oKeys: ['light', 'lamp', 'headlight', 'headlamp', '指示燈', '頭燈', '照明'],
-            qKeys: ['tire', 'wheel', 'brake actuator', '輪胎', '煞車'],
-            oDesc: '燈光 / 照明問題',
-            qDesc: '輪胎 / 底盤煞車'
         }
     ];
 
     for (let c of conflicts) {
-        let hasO = c.oKeys.some(k => oLower.includes(k));
-        let hasQ = c.qKeys.some(k => qLower.includes(k));
-        
-        if (hasO && hasQ) {
+        if (c.oKeys.some(k => oLower.includes(k)) && c.qKeys.some(k => qLower.includes(k))) {
             return `⚠️ 語意合理性提示：客戶反映為「${c.oDesc}」，但診斷處置提及「${c.qDesc}」，請確認是否填錯案件！`;
         }
     }
     return null;
+}
+
+function extractComponent(qTone) {
+    let qLower = qTone.toLowerCase();
+    
+    // 1. 常見 BMW 專有名詞與零件庫 (優先匹配)
+    let compMatch = qTone.match(/\b(expansion valve|spindle drive|wiper motor|water pump|thermostat|TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
+    if (compMatch) return compMatch[0];
+
+    // 2. 從 "replace [零件]" 句型抓取，過濾掉 "show", "to", "it" 等無效詞
+    let replaceMatch = qTone.match(/replace\s+([a-zA-Z0-9\s]+?)(?:\.|\s+so|\s+and|\s+was|\s+is|$)/i);
+    if (replaceMatch) {
+        let candidate = replaceMatch[1].replace(/^(a|the|it|to)\s+/i, "").trim();
+        let invalidWords = ['show', 'shows', 'showed', 'showing', 'find', 'found', 'check', 'checked', 'result', 'issue', 'problem', 'failure'];
+        if (!invalidWords.includes(candidate.toLowerCase()) && candidate.length > 2) {
+            return candidate;
+        }
+    }
+
+    // 3. 從 "from/by/damaged [零件]" 抓取
+    let fromMatch = qTone.match(/(?:from|by|at|damaged)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+so|\s+and|\s+was|\s+is|$)/i);
+    if (fromMatch) {
+        let candidate = fromMatch[1].replace(/^(a|the)\s+/i, "").trim();
+        let invalidWords = ['show', 'shows', 'showed', 'showing', 'find', 'found', 'check', 'checked', 'result', 'issue', 'problem', 'failure'];
+        if (!invalidWords.includes(candidate.toLowerCase()) && candidate.length > 2) {
+            return candidate;
+        }
+    }
+
+    return "component";
 }
 
 function generateComment() {
@@ -131,7 +148,6 @@ function generateComment() {
     let pumaMeasure = document.getElementById('pumaMeasure').value.trim();
     let closingText = document.getElementById('closingText').value;
 
-    // 邏輯比對檢查
     let warningBox = document.getElementById('warningBox');
     let warningMsg = checkLogicMismatch(oTone, qTone);
     if (warningMsg) {
@@ -146,37 +162,28 @@ function generateComment() {
         warningBox.style.display = "none";
     }
 
-    // 1. 處理 O-Tone 英文潤飾
+    // 1. 處理 O-Tone（自動清除重複的 Customer complaint）
     let sentence1 = "";
     if (oTone !== "") {
         let cleanedOTone = oTone
+            .replace(/^customer\s+complaint\s+(about|that)?\s*/i, "")
+            .replace(/^customer\s+complained\s+(about|that)?\s*/i, "")
             .replace(/was damage displayed/i, "malfunction was displayed")
             .replace(/was damage/i, "was damaged")
             .replace(/warning lamp was lit up/i, "warning lamp came on")
             .replace(/was lit up/i, "came on");
             
-        if (!cleanedOTone.toLowerCase().startsWith("customer complained")) {
-            sentence1 = "Customer complained that " + cleanedOTone;
-        } else {
-            sentence1 = cleanedOTone;
-        }
+        sentence1 = "Customer complained about " + cleanedOTone;
         if (!sentence1.endsWith(".")) sentence1 += ".";
     }
 
-    // 2. 智慧抓取零件名稱
-    let detectedComponent = "";
-    let fromMatch = qTone.match(/(?:from|by|at|the|damaged)\s+([a-zA-Z0-9\s]+?)(?:\.|\s+So|\s+and|\s+we|\s+to|\s+replace|\s+was)/i);
-    if (fromMatch && fromMatch[1].length > 3) {
-        detectedComponent = fromMatch[1].replace(/^(a|the)\s+/i, "").trim();
-    } else {
-        let compMatch = qTone.match(/\b(TCB|BDC|DME|RAM|KAFAS|HU|IHKA|EGS|EPS|FLE)\b/i);
-        detectedComponent = compMatch ? compMatch[0].toUpperCase() : "component";
-    }
+    // 2. 精準擷取零件名稱
+    let detectedComponent = extractComponent(qTone);
 
     // 3. 處理診斷敘述 (Sentence 2)
     let sentence2 = "";
     if (qTone.toLowerCase().includes("noise")) {
-        sentence2 = `Upon inspection, the technician confirmed that the noise was coming from the ${detectedComponent}.`;
+        sentence2 = `Upon inspection, the technician confirmed that noises were observed during testing.`;
     } else if (qTone.toLowerCase().includes("caused by")) {
         let cause = qTone.replace(/^.*caused by/i, "").replace(/\.$/, "").trim();
         sentence2 = `Upon inspection, the technician confirmed that the issue was caused by ${cause}.`;
@@ -194,9 +201,10 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    // 4. 智慧解析處置動作
+    // 4. 智慧解析處置動作 (Sentence 3)
     let actionSentence = "";
     let qLower = qTone.toLowerCase();
+    
     if (qLower.includes("clean")) {
         actionSentence = `the ${detectedComponent} was cleaned`;
     } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("更新") || qLower.includes("換")) {
@@ -207,7 +215,6 @@ function generateComment() {
         actionSentence = `the necessary repair procedure was performed`;
     }
 
-    // 結合 TSARA / PuMA 措施 (Sentence 3)
     let sentence3 = "";
     let refDocs = [];
     if (tsaraNo && tsaraNo.toLowerCase() !== "none") refDocs.push(`TSARA Case No. ${tsaraNo}`);
@@ -223,7 +230,6 @@ function generateComment() {
     // 5. 致謝語
     let sentence4 = (closingText !== "none") ? closingText : "";
 
-    // 組合最終 output
     let finalOutput = [sentence1, sentence2, sentence3, sentence4].filter(Boolean).join("\n");
     document.getElementById('output').value = finalOutput;
 }
