@@ -22,30 +22,30 @@
 <body>
 
 <div class="container">
-    <h2>BMW 保固案件 Claim Comment 自動生成器</h2>
+    <h2>BMW 保固案件 Claim Comment</h2>
     
     <div class="form-group">
-        <label>O-Tone (Customer Complaint / 客戶反應):</label>
+        <label>O-Tone (Customer Complaint):</label>
         <input type="text" id="oTone" placeholder="例如: Customer complaint about noises after he drive vehicle on road.">
     </div>
 
     <div class="form-group">
-        <label>Q-Tone / 診斷與處理過程 (Diagnosis & Action): <span class="hint">(貼上故障原因與處置)</span></label>
+        <label>Q-Tone /(Diagnosis & Action): <span class="hint">(故障原因與處置)</span></label>
         <textarea id="qTone" rows="3" placeholder="例如: Test module AT6450_LG_KLMA show to replace expansion valve. So we replace it."></textarea>
     </div>
 
     <div class="form-group">
-        <label>Fault Code (故障碼, 選填):</label>
+        <label>Fault Code (故障碼):</label>
         <input type="text" id="faultCode" placeholder="例如: 0317F2 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Test Module (檢測計畫, 選填):</label>
+        <label>Test Module (檢測計畫):</label>
         <input type="text" id="testModule" placeholder="例如: AT6450_LG_KLMA 或填 None">
     </div>
 
     <div class="form-group">
-        <label>Diag Code (診斷碼, 選填):</label>
+        <label>Diag Code (診斷碼):</label>
         <input type="text" id="diagCode" placeholder="例如: D1236_HEAT2000_28_306 或填 None">
     </div>
 
@@ -55,7 +55,7 @@
     </div>
 
     <div class="form-group">
-        <label>PuMA Measure (PuMA 措施編號, 選填):</label>
+        <label>PuMA Measure (PuMA 服務解決方案, 選填):</label>
         <input type="text" id="pumaMeasure" placeholder="例如: 20000794435083">
     </div>
 
@@ -74,7 +74,7 @@
     <div id="warningBox" class="warning-box"></div>
 
     <div class="output-box">
-        <label>Generated Claim Comment (複製回覆 AG):</label>
+        <label>Generated Claim Comment:</label>
         <textarea id="output" rows="6" readonly></textarea>
         <button onclick="copyText()" style="margin-top: 10px; background: #28a745;">複製內文</button>
     </div>
