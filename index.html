@@ -114,6 +114,16 @@
         </div>
 
         <div class="form-group">
+            <label>位置 (Location, 選填): <span class="hint">例如 front right / rear left，會自動接在零件名稱前面</span></label>
+            <input type="text" id="positionOverride" placeholder="例如: front right">
+        </div>
+
+        <div class="form-group">
+            <label>特殊處置說明 (選填): <span class="hint recommend">處置過程不是單純 clean/replace/reprogram 時（例如：先拿同款其他車做交換測試比對）請直接手動打一句，會取代自動產生的處置句子，比較不會漏掉細節</span></label>
+            <textarea id="actionOverride" rows="2" placeholder="例如: We conducted a swap test with a similar model to confirm the fault before replacing the front right output shaft."></textarea>
+        </div>
+
+        <div class="form-group">
             <label>TSARA Case No. (選填):</label>
             <input type="text" id="tsaraNo" placeholder="例如: 5164534">
         </div>
@@ -170,9 +180,23 @@ function isValidComponent(candidate) {
     if (!candidate) return false;
     let words = candidate.toLowerCase().trim().split(/\s+/);
     if (words.length === 0) return false;
+    // 候選字裡只要有任一個字在黑名單中，就整段判定為不可信，避免出現像
+    // "the show was replaced" 這種明顯錯誤但語法上看似通順的句子。
     if (words.some(w => COMPONENT_BLACKLIST.includes(w))) return false;
+    // 太短（1-2 個字母）通常是誤抓的殘字，不是真的零件名稱。
     if (candidate.replace(/\s+/g, '').length < 3) return false;
     return true;
+}
+
+// 開頭贅字可能不只一層（例如 "both side exterior mirror..."），
+// 用迴圈把 both/side/the/a/an 這些字持續往後剝，而不是只清一次。
+const LEADING_FILLERS = ['both', 'side', 'sides', 'the', 'a', 'an'];
+function stripLeadingFillers(str) {
+    let words = str.trim().split(/\s+/);
+    while (words.length > 1 && LEADING_FILLERS.includes(words[0].toLowerCase())) {
+        words.shift();
+    }
+    return words.join(' ');
 }
 
 function checkLogicMismatch(oTone, qTone) {
@@ -207,21 +231,34 @@ function checkLogicMismatch(oTone, qTone) {
 function extractComponent(qTone) {
     if (!qTone) return null;
 
+    // 1. 常見 BMW 專有名詞與複合零件庫（清單抓到的一定視為可信，不用再過黑名單）
     let compMatch = qTone.match(/\b(tension strut[s]?\s+with\s+rubber mount[s]?|output shaft|wheel pressure sensor|rdc sensor|rdc|tpms|expansion valve|spindle drive|wiper motor|water pump|thermostat|head[- ]?up display|instrument cluster|control unit|TCB|BDC|DME|CID|HU|KAFAS|IHKA|EGS|EPS|FLE)\b/i);
     if (compMatch) return compMatch[0];
 
+    // 2. 從 "find/found/see/saw [零件] has/had" 複合句型抓取
     let findMatch = qTone.match(/(?:find|found|see|saw|check|checked)\s+([a-zA-Z0-9\s]+?\s+with\s+[a-zA-Z0-9\s]+?)(?:\s+has|\s+have|\s+had|\s+is|\s+was|\.|$)/i);
     if (findMatch) {
-        let candidate = findMatch[1].replace(/^(both|a|the)\s+/i, "").trim();
+        let candidate = stripLeadingFillers(findMatch[1]);
         if (isValidComponent(candidate)) return candidate;
     }
 
+    // 3. 一般 "find/found/replace/renew/change/exchange/damaged [零件]" 句型，
+    //    抓到句號、逗號、或 so/and 這種轉折詞就停止，避免把後面整段口語都吃進來
     let generalMatch = qTone.match(/(?:find|found|replace[d]?|renew(?:ed)?|change[d]?|exchange[d]?|damaged)\s+([a-zA-Z0-9\-]+(?:\s+[a-zA-Z0-9\-]+){0,3}?)(?:\s+has\b|\s+have\b|\s+had\b|\s+is\b|\s+was\b|\s+so\b|\s+and\b|[.,]|$)/i);
     if (generalMatch) {
-        let candidate = generalMatch[1].replace(/^(both|a|the|it|them|to)\s+/i, "").trim();
+        let candidate = stripLeadingFillers(generalMatch[1]);
         if (isValidComponent(candidate)) return candidate;
     }
 
+    // 4. "caused by [零件] faulty/defective/broken/malfunctioning/damaged" 句型
+    //    （沒有 replace/found 這類動詞觸發字時，這條專門補這種「形容詞收尾」的講法）
+    let causedByMatch = qTone.match(/(?:caused by|due to)\s+(?:the\s+)?([a-zA-Z0-9\-]+(?:\s+[a-zA-Z0-9\-]+){0,5}?)\s+(?:is\s+|was\s+|were\s+|being\s+)?(?:faulty|defective|malfunctioning|malfunction(?:ed)?|broken|damaged|worn|failed)\b/i);
+    if (causedByMatch) {
+        let candidate = stripLeadingFillers(causedByMatch[1]);
+        if (isValidComponent(candidate)) return candidate;
+    }
+
+    // 都抓不到可信的結果，回傳 null，交給呼叫端提示使用者手動填寫
     return null;
 }
 
@@ -229,6 +266,8 @@ function generateComment() {
     let oTone = document.getElementById('oTone').value.trim();
     let qTone = document.getElementById('qTone').value.trim();
     let componentOverride = document.getElementById('componentOverride').value.trim();
+    let positionOverride = document.getElementById('positionOverride').value.trim();
+    let actionOverride = document.getElementById('actionOverride').value.trim();
     let faultCode = document.getElementById('faultCode').value.trim();
     let testModule = document.getElementById('testModule').value.trim();
     let diagCode = document.getElementById('diagCode').value.trim();
@@ -239,9 +278,13 @@ function generateComment() {
     let warningBox = document.getElementById('warningBox');
     let warningMsg = checkLogicMismatch(oTone, qTone);
 
+    // 零件名稱：使用者有手動填就一定用手動填的（最可靠），
+    // 沒填才走自動判斷，自動判斷失敗就明確告訴使用者，不要猜。
     let detectedComponent = componentOverride || extractComponent(qTone);
     let componentMissing = !detectedComponent;
     if (componentMissing) detectedComponent = "[請填寫零件名稱]";
+    // 位置（front right / rear left...）直接接在零件名稱前面，讓句子更精準
+    if (positionOverride && !componentMissing) detectedComponent = `${positionOverride} ${detectedComponent}`;
 
     if (componentMissing) {
         warningBox.innerText = "⚠️ 無法從 Q-Tone 自動判斷零件名稱，請在上方「零件名稱」欄位手動填寫後重新產生。";
@@ -259,12 +302,13 @@ function generateComment() {
         warningBox.style.display = "none";
     }
 
+    // 1. 處理 O-Tone
     let sentence1 = "";
     if (oTone !== "") {
         let cleanedOTone = oTone
-            .replace(/^customer\s+complaint\s+(about|that)?\s*/i, "")
-            .replace(/^customer\s+complained\s+(about|that)?\s*/i, "")
-            .replace(/^the\s+/i, "")
+            // 一次處理「(The) customer complain(ed/t) (about/that)」開頭，
+            // 不管前面有沒有 The，都在同一條規則清乾淨，避免清一半漏字。
+            .replace(/^(the\s+)?customer\s+complain(?:ed|t)\s*(about|that)?\s*/i, "")
             .replace(/has fault/i, "malfunction")
             .replace(/has oil leak/i, "oil leaks")
             .replace(/was damage displayed/i, "malfunction was displayed")
@@ -278,6 +322,7 @@ function generateComment() {
 
     let isPlural = qTone.toLowerCase().includes("both") || detectedComponent.toLowerCase().endsWith("s");
 
+    // 2. 處理診斷敘述 (Sentence 2)
     let sentence2 = "";
     if (qTone.toLowerCase().includes("leak")) {
         let compText = isPlural ? `both ${detectedComponent}` : `a damaged ${detectedComponent}`;
@@ -301,32 +346,48 @@ function generateComment() {
         sentence2 += ` Diagnostic procedure included checking ${diagDetails.join(", ")}.`;
     }
 
-    let actionSentence = "";
-    let qLower = qTone.toLowerCase();
-    let compArticle = isPlural ? "both" : "the";
-
-    if (qLower.includes("clean")) {
-        actionSentence = `${compArticle} ${detectedComponent} were cleaned`;
-    } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("exchange") || qLower.includes("換")) {
-        actionSentence = `${compArticle} ${detectedComponent} ${isPlural ? 'were' : 'was'} replaced`;
-    } else if (qLower.includes("program") || qLower.includes("encode") || qLower.includes("update")) {
-        actionSentence = `the control unit was reprogrammed`;
-    } else {
-        actionSentence = `the necessary repair procedure was performed`;
-    }
-
+    // 3. 處置動作 (Sentence 3)
     let sentence3 = "";
     let refDocs = [];
     if (tsaraNo && tsaraNo.toLowerCase() !== "none") refDocs.push(`TSARA Case No. ${tsaraNo}`);
     if (pumaMeasure && pumaMeasure.toLowerCase() !== "none") refDocs.push(`PuMA Measure <${pumaMeasure}>`);
 
-    if (refDocs.length > 0) {
-        sentence3 = `According to ${refDocs.join(" and ")}, ${actionSentence} accordingly.`;
+    if (actionOverride) {
+        // 使用者手動描述的處置流程，直接採用，不要再用樣板句覆蓋掉細節
+        let action = actionOverride.endsWith(".") ? actionOverride : actionOverride + ".";
+        sentence3 = refDocs.length > 0
+            ? `According to ${refDocs.join(" and ")}, ${action.charAt(0).toLowerCase() + action.slice(1)}`
+            : action;
     } else {
-        actionSentence = actionSentence.charAt(0).toUpperCase() + actionSentence.slice(1);
-        sentence3 = `${actionSentence} accordingly.`;
+        let actionSentence = "";
+        let qLower = qTone.toLowerCase();
+        let compArticle = isPlural ? "both" : "the";
+
+        if (qLower.includes("clean")) {
+            actionSentence = `${compArticle} ${detectedComponent} were cleaned`;
+        } else if (qLower.includes("replace") || qLower.includes("renew") || qLower.includes("exchange") || qLower.includes("換")) {
+            actionSentence = `${compArticle} ${detectedComponent} ${isPlural ? 'were' : 'was'} replaced`;
+        } else if (qLower.includes("program") || qLower.includes("encode") || qLower.includes("update")) {
+            actionSentence = `the control unit was reprogrammed`;
+        } else if (!componentMissing) {
+            // Q-Tone 沒有明確的處置動詞（例如只寫 "caused by X faulty"，
+            // 沒說後續怎麼處理）——不要瞎猜是清潔還是更換，但至少把已知的
+            // 零件名稱帶進句子，比完全空泛的「repair procedure」更有內容。
+            // 如果實際上是換掉的，建議直接用上面「特殊處置說明」欄位補一句更準確。
+            actionSentence = `the necessary repair procedure was performed on ${compArticle} ${detectedComponent}`;
+        } else {
+            actionSentence = `the necessary repair procedure was performed`;
+        }
+
+        if (refDocs.length > 0) {
+            sentence3 = `According to ${refDocs.join(" and ")}, ${actionSentence} accordingly.`;
+        } else {
+            actionSentence = actionSentence.charAt(0).toUpperCase() + actionSentence.slice(1);
+            sentence3 = `${actionSentence} accordingly.`;
+        }
     }
 
+    // 4. 致謝語
     let sentence4 = (closingText !== "none") ? closingText : "";
 
     let finalOutput = [sentence1, sentence2, sentence3, sentence4].filter(Boolean).join("\n");
